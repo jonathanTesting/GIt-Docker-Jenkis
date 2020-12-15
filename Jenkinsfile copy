@@ -1,0 +1,264 @@
+def CURRENT_STAGE = 'Started'
+def COMMITER = 'manually'
+
+pipeline {
+    agent {
+        kubernetes {
+            defaultContainer "jnlp"
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    component: ci
+spec:
+  volumes:
+  - name: dockersock
+    hostPath:
+      path: "/var/run/docker.sock"
+  - name: docker
+    hostPath:
+      path: "/usr/bin/docker"
+  - name: service-principal
+    secret:
+      secretName: eleva-conection-conf-dev
+  serviceAccount: cd-jenkins
+  containers:
+  - name: telnet
+    image: busybox
+    command:
+    - cat
+    tty: true
+  - name: node
+    image: node:lts-alpine
+    command:
+    - cat
+    tty: true
+  - name: azure
+    image: mcr.microsoft.com/azure-cli
+    volumeMounts:
+    - name: docker
+      mountPath: "/usr/bin/docker"
+    - name: dockersock
+      mountPath: "/var/run/docker.sock"
+    command:
+    - cat
+    tty: true
+  - name: dotnet
+    image: mcr.microsoft.com/dotnet/core/sdk:3.1
+    env:
+    - name: AZURE_DATABASE
+      valueFrom:
+        secretKeyRef:
+          name: eleva-conection-conf-dev
+          key: database
+    - name: AZURE_REDIS
+      valueFrom:
+        secretKeyRef:
+          name: eleva-conection-conf-dev
+          key: redis
+    command:
+    - cat
+    tty: true
+  - name: docker
+    image: docker:19.03
+    volumeMounts:
+    - name: docker
+      mountPath: "/usr/bin/docker"
+    - name: dockersock
+      mountPath: "/var/run/docker.sock"
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
+	environment {
+		TEAMS_HOOK = 'https://outlook.office.com/webhook/bd615747-68e3-477d-994c-94e6ba276b48@1137d507-c7ac-474a-bc77-3f11dda69860/JenkinsCI/f12c9feb768743538ece10a87a1a31b6/c46aec4b-eaca-44dd-b652-8a4112f7d3c4'
+	}
+    stages {
+        stage("Initialize"){
+            steps{
+                script{
+                    CURRENT_STAGE = 'Initialize'
+                }
+                container("dotnet") {
+                    sh "dotnet tool install --global dotnet-ef"
+                }
+            }
+        }
+
+        stage('Depliegue Merge Dev-UAT'){
+            steps{
+                timeout(time:1, unit:'HOURS'){
+                    input message: 'Aprueba Despliegue De DEV - UAT',
+                    submitter: 'aduque@dataifx.com,ApprovedLab'
+                }    
+            }
+        }        
+        stage('Git Release Branch'){
+            steps{
+				script{
+                    CURRENT_STAGE = 'Git Release Branch'
+                }
+                git branch: 'release', credentialsId: 'aduque-gitlab-davivienda', url: 'https://git.co.davivienda.com/bancapatrimonial/eleva/eleva-aspnet.git'
+                
+                script {
+                    COMMITTER_NAME = sh (
+                        returnStdout: true,
+                        script: 'git --no-pager show -s --format=\'%an\''
+                    ).trim()
+                    
+                     if(COMMITTER_NAME != null){
+                        COMMITER = 'by ' + COMMITTER_NAME
+                    } 
+                }
+                
+                office365ConnectorSend message: 'The Pipeline with ID ' + env.BUILD_DISPLAY_NAME + ' was started ' + COMMITER, webhookUrl: env.TEAMS_HOOK
+            }
+        }
+        stage('Build UAT') {
+            steps {
+				script{
+                    CURRENT_STAGE = 'Build'
+                }
+                container("dotnet") {
+					sh "dotnet build"
+                }
+            }
+        }
+        stage('Tests') {
+            steps {
+				script{
+                    CURRENT_STAGE = 'Tests'
+                }
+                container("dotnet") {
+                    //sh "dotnet test test/Dataifx.Eleva.Tests/Dataifx.Eleva.Tests.csproj"
+                }
+            }
+        }
+        stage('Deploy Dev-UAT') {
+            steps {
+                script{
+                    CURRENT_STAGE = 'Deploy Dev-UAT'
+                }
+                container("docker") {
+                    withCredentials([usernamePassword(credentialsId: 'jenkins-azure-service-account', usernameVariable: "username", passwordVariable: "password")]) {
+				        sh "docker login 02pelevacontregd01.azurecr.io -u $username -p $password"
+				        sh "docker build -t dataifxelevaweb-${BUILD_NUMBER} --no-cache=true ."
+				        sh "docker tag dataifxelevaweb-${BUILD_NUMBER} 02pelevacontregd01.azurecr.io/dataifxelevaweb-${BUILD_NUMBER}:${BUILD_NUMBER}"
+				        sh "docker push 02pelevacontregd01.azurecr.io/dataifxelevaweb-${BUILD_NUMBER}:${BUILD_NUMBER}"
+                    }
+                }
+                container("azure") {
+                    withCredentials([usernamePassword(credentialsId: 'azure-dev-sa-principal', usernameVariable: "username", passwordVariable: "password")]) {
+                        sh "az login  -u $username -p $password"
+                        sh "az webapp config container set --name 03p-elevaapi-l01 --resource-group RG-ELEVA-D --docker-custom-image-name 02pelevacontregd01.azurecr.io/dataifxelevaweb-${BUILD_NUMBER}:${BUILD_NUMBER} --docker-registry-server-url https://02pelevacontregd01.azurecr.io"
+                    }
+                }                
+            }
+        }
+        stage('Certification [DataiFX UAT]'){
+            steps{
+                timeout(time:1, unit:'HOURS'){
+                    input message: 'Aprueba Despliegue de Ambiente UAT - LAB?',
+                    submitter: 'aduque@dataifx.com,ApprovedLab'
+                }    
+            }
+        }
+        stage('Git TAG Generation'){
+            steps{
+                script{
+                    CURRENT_STAGE = 'Git TAG Generation'
+                }
+
+            }
+        }
+        
+        stage('Approve LAB - Ambiente LAB'){
+            steps{
+                timeout(time:1, unit:'HOURS'){
+                    input message: 'Aprueba Despliegue de Ambiente UAT - LAB?',
+                    submitter: 'aduque@dataifx.com,Approved_Lab'
+                }    
+            }
+        }
+        stage('Deploy Ambiente LAB') {
+            steps {
+                script{
+                    CURRENT_STAGE = 'Deploy Ambiente LAB'
+                }
+                container("docker") {
+                    withCredentials([usernamePassword(credentialsId: 'jenkins-azure-service-account', usernameVariable: "username", passwordVariable: "password")]) {
+			            sh "docker login 02pelevacontregl01.azurecr.io -u $username -p $password"
+				        sh "docker build -t dataifxelevaweb-${BUILD_NUMBER} --no-cache=true ."
+				        sh "docker tag dataifxelevaweb-${BUILD_NUMBER} 02pelevacontregl01.azurecr.io/dataifxelevaweb-${BUILD_NUMBER}:${BUILD_NUMBER}"
+				        sh "docker push 02pelevacontregl01.azurecr.io/dataifxelevaweb-${BUILD_NUMBER}:${BUILD_NUMBER}"
+                    }
+                }
+            }
+        }
+        stage('LAB - Certification Pruebas'){
+            steps{
+                timeout(time:1, unit:'HOURS'){
+                    input message: 'Aprueba Despliegue Ambiente LAB- Master(Solo Cliente)?',
+                    submitter: 'Approved_Lab'
+                }    
+            }
+        }
+        stage('[Infra] Approve Prod.'){
+            steps{
+                timeout(time:1, unit:'HOURS'){
+                    input message: 'Aprueba Despliegue Ambiente Pro?',
+                    submitter: 'Approved_Lab'
+                }    
+            }
+        }
+        stage('Git merge to Master'){
+            steps{
+                script{
+                    withCredentials([usernamePassword(credentialsId: 'aduque-gitlab-davivienda', usernameVariable: "username", passwordVariable: "password")]) {
+                            sh 'git config user.email "jrodriguez@dataifx.com"'
+                            sh 'git add .'
+                            sh 'git commit -m "version ${BUILD_NUMBER}"'
+                            sh 'git push https://${GIT_USERNAME}:${GIT_PASSWORD}@git.co.davivienda.com/bancapatrimonial/eleva/eleva-aspnet.git --all'
+                            sh 'git checkout master'
+                            sh 'git merge v${BUILD_NUMBER}'
+                            sh 'git push https://${GIT_USERNAME}:${GIT_PASSWORD}@git.co.davivienda.com/bancapatrimonial/eleva/eleva-aspnet.git --all'
+                        
+                    }
+                }
+             }   
+              
+        }      
+        stage('Deploy Prod.') {
+                steps {
+                    script{
+                        CURRENT_STAGE = 'Aprueba Deploy Produccion'
+                    }
+                    container("docker") {
+                        withCredentials([usernamePassword(credentialsId: 'jenkins-azure-service-account', usernameVariable: "username", passwordVariable: "password")]) {
+                            sh "docker login 02pelevacontregl01.azurecr.io -u $username -p $password"
+                            sh "docker build -t dataifxelevaweb --no-cache=true ."
+                            sh "docker tag dataifxelevaweb 02pelevacontregl01.azurecr.io/dataifxelevaweb:Pro"
+                            sh "docker push 02pelevacontregl01.azurecr.io/dataifxelevaweb:Pro"
+                        }
+                    }
+                }
+            }
+    }
+	post {
+        aborted {
+            office365ConnectorSend color: '#af002a', message: 'The Pipeline with ID ' + env.BUILD_DISPLAY_NAME + ' was Aborted on stage ' + CURRENT_STAGE, webhookUrl: env.TEAMS_HOOK
+        }
+        failure {
+        office365ConnectorSend color: '#af002a', message: 'The Pipeline with ID ' + env.BUILD_DISPLAY_NAME + ' Failed on stage ' + CURRENT_STAGE, webhookUrl: env.TEAMS_HOOK
+        }
+        success {
+            script{
+                CURRENT_STAGE = "Success"
+            }
+            office365ConnectorSend color: '#00cc00', message: 'The Pipeline with ID ' + env.BUILD_DISPLAY_NAME + ' was executed Succesfully!', webhookUrl: env.TEAMS_HOOK
+        }
+    }
+}

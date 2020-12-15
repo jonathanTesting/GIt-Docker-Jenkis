@@ -1,0 +1,55 @@
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  jobs:
+  - job: FirsJob
+    steps:
+    - bash: echo Build FirstJob
+    - bash: echo $(PipelineLevelVariable)
+    - bash: echo $(Build.BuildNumber)
+    - bash: echo $(Build.BuildId)
+    - bash: echo $(Build.SourceBranchName)
+    - bash: echo $(Build.SourceDirectory)
+    - bash: echo $(System.DefaultWorkingDirectory)
+    - bash: ls -R $(System.DefaultWorkingDirectory)
+    - bash: echo $(Build.ArtifactStagingDirectory)
+    - bash: java -version
+    - bash: ls -R $(Build.ArtifactStagingDirectory)
+
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'tatan06-docker-hub'
+        repository: 'tatan06/dataifx-devops'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        tags: 'dev'
+    # - task: Docker@2
+    #   inputs:
+    #     containerRegistry: 'tatan06-docker-hub'
+    #     repository: 'tatan06/dataifx-devops'
+    #     command: 'Push'
+    #     Dockerfile: '**/Dockerfile'
+    #     tags: 'QA'
+
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(System.DefaultWorkingDirectory)'
+        Contents: |
+          **/*.csproj
+          **/*.cshtml
+          **/*.json
+          **/*Dockerfile
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    - bash: ls -R $(Build.ArtifactStagingDirectory)
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'

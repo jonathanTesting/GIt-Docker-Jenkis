@@ -2,10 +2,15 @@ pipeline {
     agent any
 
     stages {
-        stage('Build') {
-            steps {
-                echo 'Building..'
+        steps {
+				script{
+                    CURRENT_STAGE = 'Build'
+                }
+                container("dotnet") {
+					sh "dotnet build"
+                }
             }
+        }
         }
         stage('Test') {
             steps {

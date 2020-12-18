@@ -4,12 +4,13 @@ pipeline {
     stages {
 
         stage('Build') {
-                        steps {
+            
+            steps {
 				script{
                     CURRENT_STAGE = 'Build'
                 }
                 container("dotnet") {
-					sh "dotnet restore"
+					sh "dotnet build"
                 }
             }
 

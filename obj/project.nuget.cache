@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "J/t/L90JKRg5GkQ65HMmUGvI/AU2wZGUOmzGGNfQErz0V0e6KAewxxGl8Magwhz+yV9MdwUf/mp94zTtycjQnw==",
+  "dgSpecHash": "pBzH+5XYSuTBShHMoqc6b3kAooWMEoSI3JctWrPyq/BhPwSimUqplGPcwsd6KLxnFImxdahS+THKgCQ5EKcROw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\tatan\\Devops\\DeliveryTest\\DeliveryTest.csproj",
+  "projectFilePath": "C:\\Users\\tatan\\Devops\\GIt-Docker-Jenkis\\DeliveryTest.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }

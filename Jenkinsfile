@@ -2,9 +2,6 @@ pipeline {
     agent {docker { image 'node'}
 
     }
-    environment {
-        TEAMS_HOOK = 'https://outlook.office.com/webhook/bd615747-68e3-477d-994c-94e6ba276b48@1137d507-c7ac-474a-bc77-3f11dda69860/JenkinsCI/f12c9feb768743538ece10a87a1a31b6/c46aec4b-eaca-44dd-b652-8a4112f7d3c4'
-    }
     stages {
         stage('Git [develop]'){
             steps{
@@ -22,8 +19,6 @@ pipeline {
                         COMMITER = 'by ' + COMMITTER_NAME
                     } 
                 }
-                
-                office365ConnectorSend message: 'The Pipeline with ID ' + env.BUILD_DISPLAY_NAME + ' was started ' + COMMITER, webhookUrl: env.TEAMS_HOOK
             }
         }
         stage("Initialize"){
@@ -81,10 +76,11 @@ pipeline {
                         
                 //         sh "az storage blob delete-batch --source '\$web' --account-name 07pelevastoraged --auth-mode login"
                 //         sh "az storage blob upload-batch --source 'apps/app-mobile-two' --destination '\$web' --account-name 07pelevastoraged --auth-mode login"
-                    }
+                    // }
                 }
             }
         }
     }
     
+    }
 }

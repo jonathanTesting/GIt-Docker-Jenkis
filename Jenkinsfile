@@ -7,7 +7,7 @@ pipeline {
 				script{
                     CURRENT_STAGE = 'Git Develop Branch'
                 }
-                git branch: 'mani', credentialsId: 'jonathanTesting', url: 'https://github.com/jonathanTesting/GIt-Docker-Jenkis.git'
+                git branch: 'main', credentialsId: 'jonathanTesting', url: 'https://github.com/jonathanTesting/GIt-Docker-Jenkis.git'
                 
                 script {
                     COMMITTER_NAME = sh (

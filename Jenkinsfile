@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     stages {
-        steps {
+        stage('Build') {
+                        steps {
 				script{
                     CURRENT_STAGE = 'Build'
                 }
@@ -10,7 +11,7 @@ pipeline {
 					sh "dotnet build"
                 }
             }
-        }
+
         }
         stage('Test') {
             steps {

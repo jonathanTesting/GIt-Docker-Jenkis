@@ -1,5 +1,5 @@
 pipeline {
-    agent {docker { image 'node'}
+    agent {
     }
     stages {
         stage("Initialize"){

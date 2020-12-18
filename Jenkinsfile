@@ -10,7 +10,7 @@ pipeline {
                     CURRENT_STAGE = 'Build'
                 }
                 container("dotnet") {
-                    ls
+                    sh "ls"
 					sh "dotnet build"
                 }
             }
